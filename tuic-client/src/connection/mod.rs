@@ -14,7 +14,7 @@ use quinn::{
 use register_count::Counter;
 use rustls::{version, ClientConfig as RustlsClientConfig};
 use std::{
-    net::{Ipv4Addr, Ipv6Addr, SocketAddr, UdpSocket},
+    net::{Ipv4Addr, Ipv6Addr, SocketAddr},
     sync::{atomic::AtomicU32, Arc},
     time::Duration,
 };
@@ -27,6 +27,7 @@ use uuid::Uuid;
 
 mod handle_stream;
 mod handle_task;
+mod protect;
 
 static ENDPOINT: OnceCell<Mutex<Endpoint>> = OnceCell::new();
 static CONNECTION: AsyncOnceCell<AsyncMutex<Connection>> = AsyncOnceCell::const_new();
@@ -89,9 +90,9 @@ impl Connection {
         config.transport_config(Arc::new(tp_cfg));
 
         // Try to create an IPv4 socket as the placeholder first, if it fails, try IPv6.
-        let socket = UdpSocket::bind(SocketAddr::from((Ipv4Addr::UNSPECIFIED, 0)))
+        let socket = protect::my_bind_udp(SocketAddr::from((Ipv4Addr::UNSPECIFIED, 0)))
             .or_else(|err| {
-                UdpSocket::bind(SocketAddr::from((Ipv6Addr::UNSPECIFIED, 0))).map_err(|_| err)
+                protect::my_bind_udp(SocketAddr::from((Ipv6Addr::UNSPECIFIED, 0))).map_err(|_| err)
             })
             .map_err(|err| Error::Socket("failed to create endpoint UDP socket", err))?;
 
@@ -217,7 +218,8 @@ impl Connection {
                     Ok(dg) => tokio::spawn(self.clone().handle_datagram(dg)),
                     Err(err) => break err,
                 },
-            };
+            }
+            ;
         };
 
         log::warn!("[relay] connection error: {err}");
@@ -272,7 +274,7 @@ impl Endpoint {
                     };
 
                     self.ep
-                        .rebind(UdpSocket::bind(bind_addr).map_err(|err| {
+                        .rebind(protect::my_bind_udp(bind_addr).map_err(|err| {
                             Error::Socket("failed to create endpoint UDP socket", err)
                         })?)
                         .map_err(|err| {
