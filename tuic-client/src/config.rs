@@ -110,6 +110,11 @@ pub struct Relay {
         deserialize_with = "deserialize_duration"
     )]
     pub gc_lifetime: Duration,
+
+    //
+
+    #[serde(default = "default::relay::allow_insecure")]
+    pub allow_insecure: bool,
 }
 
 #[derive(Deserialize)]
@@ -217,6 +222,10 @@ mod default {
 
         pub fn gc_lifetime() -> Duration {
             Duration::from_secs(15)
+        }
+
+        pub fn allow_insecure() -> bool {
+            false
         }
     }
 

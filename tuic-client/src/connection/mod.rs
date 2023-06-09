@@ -27,6 +27,7 @@ use uuid::Uuid;
 
 mod handle_stream;
 mod handle_task;
+mod allow_insecure;
 mod protect;
 
 static ENDPOINT: OnceCell<Mutex<Endpoint>> = OnceCell::new();
@@ -60,6 +61,14 @@ impl Connection {
             .unwrap()
             .with_root_certificates(certs)
             .with_no_client_auth();
+
+        if cfg.allow_insecure {
+            log::warn!("warning: insecure enabled");
+            crypto = RustlsClientConfig::builder()
+                .with_safe_defaults()
+                .with_custom_certificate_verifier(Arc::new(allow_insecure::SkipVerify))
+                .with_no_client_auth()
+        }
 
         crypto.alpn_protocols = cfg.alpn;
         crypto.enable_early_data = true;
